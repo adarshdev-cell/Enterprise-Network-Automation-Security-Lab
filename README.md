@@ -5,101 +5,157 @@
 
 ## 🏗️ Project Architecture & Automation Workflow
 ```text
-                              INTERNET
-                                  |
-                           +--------------+
-                           |   FIREWALL   |
-                           +--------------+
-                                  |
-                           +--------------+
-                           |   HQ ROUTER  |
-                           +--------------+
-                                  |
-                 +----------------+----------------+
-                 |                                 |
-           HEAD OFFICE                         BRANCH OFFICE
-                 |                                 |
-          +------+------+                     +----+----+
-          |             |                     |         |
-         R1             R2                    R3      SWITCH
-          |             |                     |         |
-       +--+--+       +--+--+                VLANs     USERS
-       |     |       |     |                   |
-     SW1   SW2     SW3   SW4                USERS
-       |     |       |     |
-     VLANs VLANs   VLANs VLANs
-                 
+                                      ┌──────────────────┐
+                                      │    INTERNET      │
+                                      └────────┬─────────┘
+                                               │
+                                      ┌────────▼─────────┐
+                                      │    ISP ROUTER    │
+                                      └────────┬─────────┘
+                                               │
+                                               │ WAN
+                                      ┌────────▼─────────┐
+                                      │    FORTIGATE     │
+                                      │       VM         │
+                                      │                  │
+                                      │ Firewall         │
+                                      │ NAT              │
+                                      │ VPN / IPsec      │
+                                      │ Security Policy  │
+                                      │ Logging          │
+                                      └────────┬─────────┘
+                                               │
+                                               │ LAN
+                                               │
+                              ┌────────────────▼────────────────┐
+                              │          HQ CORE                │
+                              │       Cisco L3 Switch           │
+                              │                                 │
+                              │ Inter-VLAN Routing / HSRP       │
+                              └────────────────┬────────────────┘
+                                                 │
+                         ┌─────────────────────  ┼─────────────────────┐
+                         │                       │                     │
+                         │                       │                     │
+                  ┌──────▼──────┐         ┌──────▼──────┐      ┌──────▼──────┐
+                  │     R1      │         │     R2      │      │ MANAGEMENT  │
+                  │ Cisco IOS   │         │ Cisco IOS   │      │   NETWORK   │
+                  └──────┬──────┘         └──────┬──────┘      └──────┬──────┘
+                         │                       │                    │
+                    ┌────┴────┐             ┌────┴────┐        ┌──────▼──────────┐
+                    │         │             │         │        │Ubuntu Automation│
+                   SW1       SW2           SW3       SW4       │     Server      │
+                    │         │             │         │        │                 │
+                 ┌──┴──┐   ┌──┴──┐       ┌──┴──┐   ┌──┴──┐     │ Linux           │
+                 │     │   │     │       │     │   │     │     │ Python          │
+              VLANs VLANs VLANs VLANs VLANs VLANs VLANs VLANs  │ Ansible         │
+                │     │    │       │    │     │     │      │   │ Git             │
+              Users  Users Users Users Users Users Users Users └────────┬────────┘
+                                                                       │
+                                                                       │
+                                            ┌──────────────────────────┼──────────────┐
+                                            │                          │              │
+                                            │ SSH                      │ SSH          │ REST API
+                                            ▼                          ▼              ▼
+                                      ┌───────────┐              ┌───────────┐  ┌───────────┐
+                                      │    R1     │              │    R2     │  │ FortiGate │
+                                      │ Cisco IOS │              │ Cisco IOS │  │    VM     │
+                                      └───────────┘              └───────────┘  └───────────┘
+                                            │                          │
+                                            │                          │
+                                            └────────────┬─────────────┘
+                                                         │
+                                                         │ WAN / OSPF
+                                                         │
+                                      ┌──────────────────▼──────────────────┐
+                                      │            BRANCH OFFICE            │
+                                      │                                     │
+                                      │          ┌──────────────┐           │
+                                      │          │      R3      │           │
+                                      │          │ Cisco Router │           │
+                                      │          └──────┬───────┘           │
+                                      │                 │                   │
+                                      │          ┌──────▼───────┐           │
+                                      │          │ BRANCH SWITCH│           │
+                                      │          └──────┬───────┘           │
+                                      │                 │                   │
+                                      │      ┌──────────┼──────────┐        │
+                                      │      │          │          │        │
+                                      │ ┌────▼────┐ ┌───▼────┐ ┌───▼──────┐ │
+                                      │ │ VLAN 60 │ │VLAN 90 │ │ VLAN 199 │ │
+                                      │ │  BLAN   │ │ BWLAN  │ │ BACKHOLE │ │
+                                      │ └────┬────┘ └───┬────┘ └────┬─────┘ │
+                                      │      │          │          │        │
+                                      │    USERS       Wi-Fi      NETWORK   │
+                                      │     PCs        APs      MANAGEMENT  │
+                                      │                 │                   │
+                                      │                USERS                │
+                                      └─────────────────────────────────────┘
 
-                         MANAGEMENT NETWORK
-                                  |
-                                  |
-                    +--------------------------+
-                    | Ubuntu Automation Server |
-                    |          Linux           |
-                    +--------------------------+
-                                  |
-                                  |
-                                SSH
-                                  |
-                 +----------------+----------------+
-                 |                |                |
-                 |                |                |
-                R1               R2               R3
-                 |                |                |
-             Cisco IOS        Cisco IOS        Cisco IOS
 
+═══════════════════════════════════════════════════════════════════════════════
+                         AUTOMATION & SECURITY WORKFLOW
+═══════════════════════════════════════════════════════════════════════════════
 
-                    AUTOMATION WORKFLOW
-                              |
-                              v
-                     +----------------+
-                     | Device         |
-                     | Inventory      |
-                     +----------------+
-                              |
-                              v
-                       +-------------+
-                       | YAML        |
-                       | Inventory   |
-                       +-------------+
-                              |
-                              v
-                  +-----------------------+
-                  | Python / Ansible      |
-                  |                       |
-                  | Netmiko / Paramiko    |
-                  | NAPALM / Scrapli      |
-                  +-----------------------+
-                              |
-                              v
-                           SSH
-                              |
-                              v
-                    +-------------------+
-                    | Cisco Devices     |
-                    | R1 / R2 / R3      |
-                    +-------------------+
-                              |
-                +-------------+-------------+
-                |             |             |
-                v             v             v
-          Configuration    Backup       Health Check
-                |             |             |
-                v             v             v
-             Validate       Git       Network Report
-                |             |             |
-                +-------------+-------------+
-                              |
-                              v
-                    +-------------------+
-                    | Security Audit    |
-                    | & Compliance      |
-                    +-------------------+
-                              |
-                              v
-                    +-------------------+
-                    | Final Report      |
-                    +-------------------+
+                         ┌─────────────────────┐
+                         │    Git Repository   │
+                         │  Version Control    │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │ YAML / JSON         │
+                         │ Device Inventory    │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                    ┌────────────────────────────────┐
+                    │      Ubuntu Automation Server  │
+                    │                                │
+                    │ Python / Bash / Ansible        │
+                    └───────────────┬────────────────┘
+                                    │
+                  ┌─────────────────┼─────────────────┐
+                  │                 │                 │
+                  ▼                 ▼                 ▼
+             ┌─────────┐       ┌─────────┐      ┌──────────┐
+             │  Cisco  │       │  Cisco  │      │ FortiGate│
+             │ R1 / R2 │       │    R3   │      │    VM    │
+             └────┬────┘       └────┬────┘      └────┬─────┘
+                  │                 │                │
+              SSH / CLI         SSH / CLI         REST API
+                  │                 │                │
+                  └─────────────────┼────────────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │ Automation Tasks    │
+                         └──────────┬──────────┘
+                                    │
+                 ┌──────────────────┼──────────────────┐
+                 │                  │                  │
+                 ▼                  ▼                  ▼
+          Configuration          Backup           Health Check
+                 │                  │                  │
+                 ▼                  ▼                  ▼
+             Validation            Git             Monitoring
+                 │                  │                  │
+                 └──────────────────┼──────────────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │ Security Audit      │
+                         │ & Compliance        │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │ Reports & Logs      │
+                         │                     │
+                         │ Health Report       │
+                         │ Security Report     │
+                         │ Compliance Report   │
+                         └─────────────────────┘
 
 ```
 ## 🎯 Project Objectives
