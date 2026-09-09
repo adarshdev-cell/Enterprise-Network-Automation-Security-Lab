@@ -251,6 +251,7 @@ nftables \
 **Now install Python packages inside python virtual venv**
 ```text
 cd ~/network-automation
+python3 -m venv venv
 source venv/bin/activate
 
 pip install netmiko
